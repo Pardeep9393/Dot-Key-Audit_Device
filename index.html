@@ -236,7 +236,7 @@
       <table id="combinedTable">
         <thead>
           <tr>
-            <th class="sortable" onclick="sortCombinedBy('team')">Team <span class="arrow">↕</span></th>
+            <th class="sortable" onclick="sortCombinedBy('team')">Auditor <span class="arrow">↕</span></th>
             <th class="sortable" onclick="sortCombinedBy('date')">Date <span class="arrow">↕</span></th>
             <th class="sortable" onclick="sortCombinedBy('shelf')">Shelf <span class="arrow">↕</span></th>
             <th class="sortable" onclick="sortCombinedBy('ean')">EAN <span class="arrow">↕</span></th>
@@ -643,18 +643,52 @@ async function fetchTeamTab(tab){
   return out;
 }
 
-async function loadCombinedTeamTabs(){
-  const results = await Promise.allSettled(TEAM_TABS.map(fetchTeamTab));
-  combinedRows = [];
-  results.forEach((r, i) => {
-    if(r.status === 'fulfilled') combinedRows.push(...r.value);
-    else console.warn('[audit-dashboard] team tab fetch failed:', TEAM_TABS[i].name, r.reason);
-  });
+// Combined Team Scan Log ab scanner ke "Audit Entries" tab se aata hai.
+// Columns: A=Entry Time, B=Auditor, C=Shelf, D=EAN, E=MRP, F=Case Size,
+// G=Box Count, H=Loose QTY, I=Total QTY, J=Bin ID
+const AUDIT_ENTRIES_TAB = "Audit Entries";
 
+async function fetchAuditEntries(){
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(AUDIT_ENTRIES_TAB)}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const text = await res.text();
+  const data = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+  const tabRows = data.table.rows || [];
+  const txt = c => (!c) ? '' : String((c.f ?? c.v ?? '')).trim();
+  const num = c => (!c) ? 0 : (Number(c.v) || Number(c.f) || 0);
+  const out = [];
+  for(const row of tabRows){
+    const c = row.c;
+    if(!c) continue;
+    const ean = txt(c[3]);
+    if(!ean || ean.toLowerCase() === 'ean') continue;           // blank / header row
+    const caseSize = num(c[5]), boxCount = num(c[6]);
+    out.push({
+      team: txt(c[1]) || '—',                                    // Auditor
+      date: txt(c[0]),
+      shelf: txt(c[2]),
+      ean: ean,
+      mrp: num(c[4]),
+      caseSize: caseSize,
+      boxCount: boxCount,
+      looseQty: num(c[7]),
+      boxQty: caseSize * boxCount,
+      totalQty: num(c[8]),
+      len: '', eanMatch: '', locationMismatch: ''
+    });
+  }
+  return out;
+}
+
+async function loadCombinedTeamTabs(){
+  combinedRows = await fetchAuditEntries();
+
+  const auditors = [...new Set(combinedRows.map(r => r.team))].sort((a,b)=>a.localeCompare(b));
   const teamFilterEl = document.getElementById('combinedTeamFilter');
   const prevVal = teamFilterEl.value;
-  teamFilterEl.innerHTML = '<option value="All">All teams</option>' +
-    TEAM_TABS.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+  teamFilterEl.innerHTML = '<option value="All">All auditors</option>' +
+    auditors.map(t => `<option value="${t.replace(/"/g,'&quot;')}">${t}</option>`).join('');
   teamFilterEl.value = [...teamFilterEl.options].some(o => o.value === prevVal) ? prevVal : 'All';
 
   applyCombinedFilters();
