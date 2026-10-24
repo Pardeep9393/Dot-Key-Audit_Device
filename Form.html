@@ -27,7 +27,7 @@
   .item{border:1px solid var(--bd);border-radius:10px;padding:10px;margin-top:10px}
   .item.flash{border-color:var(--ok);background:#effaf4}
   .ean{font-weight:700;font-size:15px;display:flex;justify-content:space-between;gap:8px}
-  .fields{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+  .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
   .fields input{font-size:16px;padding:8px}
   .fields label{font-size:10px}
   .tot{margin-top:8px;font-size:13px;color:var(--mu);display:flex;align-items:center;gap:12px}
@@ -113,7 +113,6 @@ function itemHtml(i, idx){
   return `<div class="item" id="it${idx}">
     <div class="ean"><span>${esc(i.ean)}</span><button class="x" onclick="delItem(${idx})">✕</button></div>
     <div class="fields">
-      <div><label>MRP</label><input type="number" inputmode="decimal" value="${i.mrp}" oninput="upd(${idx},'mrp',this.value)"></div>
       <div><label>Case Size</label><input type="number" inputmode="numeric" value="${i.caseSize}" oninput="upd(${idx},'caseSize',this.value)"></div>
       <div><label>Box Count</label><input type="number" inputmode="numeric" value="${i.box}" oninput="upd(${idx},'box',this.value)"></div>
       <div><label>Loose QTY</label><input type="number" inputmode="numeric" value="${i.loose}" oninput="upd(${idx},'loose',this.value)"></div>
@@ -168,7 +167,6 @@ async function closeBin(){
   err = '';
   if (!S.items.length) { err = 'Koi EAN scan nahi hua.'; return render(); }
   for (const i of S.items) {
-    if (n(i.mrp) <= 0) { err = `EAN ${i.ean}: MRP bharo.`; return render(); }
     if (n(i.box) > 0 && n(i.caseSize) <= 0) { err = `EAN ${i.ean}: Box count hai to Case Size bharo.`; return render(); }
     if (total(i) <= 0) { err = `EAN ${i.ean}: Qty 0 hai — hatao ya qty bharo.`; return render(); }
   }
