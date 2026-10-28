@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Audit Dot&Key_BLS — Bin Scanner</title>
+<title>Ext_Audit Dot&Key Gopalpur — Bin Scanner</title>
 <style>
   :root{--bg:#f3f5f9;--card:#fff;--bd:#d9dfea;--tx:#17202e;--mu:#6b778c;--ac:#1a73e8;--ok:#1e9e5a;--er:#d93b4f}
   *{box-sizing:border-box}
@@ -43,15 +43,15 @@
 </style>
 </head>
 <body>
-<div class="top"><h1>📦 Audit Bin Scanner <span style="font-size:12px;color:var(--mu);font-weight:600">· Dot&amp;Key_BLS</span></h1><div class="who" id="who"></div></div>
+<div class="top"><h1>📦 Audit Bin Scanner <span style="font-size:12px;color:var(--mu);font-weight:600">· Dot&amp;Key Gopalpur</span></h1><div class="who" id="who"></div></div>
 <div id="app"></div>
 
 <script>
 // ====== CONFIG: Apps Script Web App URL yahan paste karo ======
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8VaMnPnJe6Ubzl6L4ePersjnTPWyxyG6GHFTkDKXkFCMWkDRzhnx2gsNsT6E4YVAx/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyKi6q83SfMMi67DNw60-N7chRV3IsKWJgehUKTdjJvfE9oBuTUnqHA27Moj4ut2ZhcQ/exec';
 // ===============================================================
 
-const KEY = 'auditBinState_dotkey_v1';
+const KEY = 'auditBinState_dotkey_gopalpur_v1';
 let S = load() || { auditor:'', stage:'login', shelf:'', items:[], binId:'', saved:null };
 let busy = false, err = '';
 
@@ -81,8 +81,9 @@ function render(focusId){
 
   if (S.stage === 'loc') {
     a.innerHTML = e + `<div class="card"><label>Scan Location / Shelf</label>
-      <input id="loc" placeholder="Location barcode scan karo" autocomplete="off">
-      <div class="row" style="margin-top:12px"><button class="sec" onclick="logout()">Logout</button></div></div>`;
+      <input id="loc" placeholder="Location barcode scan karo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+      <div id="sc" class="sum"></div>
+      <div class="row" style="margin-top:12px"><button class="sec" onclick="logout()">Logout</button><button class="ok" onclick="submitLoc()">✔ Set Location</button></div></div>`;
     focus('loc'); return;
   }
 
@@ -100,7 +101,7 @@ function render(focusId){
   <div class="card"><div class="shelf"><div><label>Shelf</label><b>${esc(S.shelf)}</b></div>
     <div class="sum" style="text-align:right">${S.items.length} EAN<br>${qty} units</div></div></div>
   <div class="card"><label>Scan EAN (har scan = +1 loose)</label>
-    <input id="ean" placeholder="EAN scan karo" autocomplete="off" inputmode="numeric">
+    <input id="ean" placeholder="EAN scan karo" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" inputmode="numeric">
     <div id="list">${S.items.map(itemHtml).join('')}</div></div>
   <div class="row">
     <button class="dg" onclick="startNew(true)">Start New Bin</button>
@@ -120,15 +121,64 @@ function itemHtml(i, idx){
     <div class="tot"><button class="sec more" onclick="scanMore()">➕ Scan more EAN</button><span>Total: <b id="tt${idx}">${total(i)}</b></span></div></div>`;
 }
 
-function focus(id){ setTimeout(()=>{ const el = document.getElementById(id); if (el) el.focus(); }, 30); }
+function focus(id){ setTimeout(()=>{ const el = document.getElementById(id); if (el) { el.focus(); status(); } }, 30); }
 
+function setLoc(v){
+  v = (v || '').trim(); if (!v) return;
+  S.shelf = v.toUpperCase(); S.stage = 'bin'; S.binId = uid(); S.items = []; err = ''; persist(); render('ean');
+}
+function submitLoc(){ const el = document.getElementById('loc'); if (el) setLoc(el.value); }
+
+// --- scanner handling: Enter / Tab / fast-burst (no Enter) / keystrokes when input not focused ---
+let scanTimer = null, firstT = 0, lastT = 0, cnt = 0;
+function resetBurst(){ clearTimeout(scanTimer); firstT = lastT = cnt = 0; }
+function handleScan(id){
+  const el = document.getElementById(id); if (!el) return;
+  const v = el.value.trim(); if (!v) return;
+  resetBurst();
+  if (id === 'loc') setLoc(v);
+  else if (id === 'ean') { el.value = ''; scanEan(v); }
+}
 document.addEventListener('keydown', ev => {
-  if (ev.key !== 'Enter') return;
-  const id = ev.target.id, v = ev.target.value.trim();
-  if (id === 'nm') login();
-  else if (id === 'loc' && v) { S.shelf = v.toUpperCase(); S.stage = 'bin'; S.binId = uid(); S.items = []; err=''; persist(); render('ean'); }
-  else if (id === 'ean' && v) scanEan(v);
+  const t = ev.target, id = t.id;
+  if (ev.key === 'Enter' || ev.keyCode === 13) {
+    if (id === 'nm') login();
+    else if (id === 'loc' || id === 'ean') { ev.preventDefault(); handleScan(id); }
+    return;
+  }
+  if (ev.key === 'Tab' && (id === 'loc' || id === 'ean') && t.value.trim()) { ev.preventDefault(); handleScan(id); return; }
+  // input focus me nahi hai to bhi scanner ke characters pakad lo
+  if (t.tagName !== 'INPUT' && ev.key && ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey && (S.stage === 'loc' || S.stage === 'bin')) {
+    const el = document.getElementById(S.stage === 'loc' ? 'loc' : 'ean');
+    if (el) { ev.preventDefault(); el.focus(); el.value += ev.key; el.dispatchEvent(new Event('input', {bubbles:true})); }
+  }
 });
+document.addEventListener('input', ev => {
+  const id = ev.target.id; if (id !== 'loc' && id !== 'ean') return;
+  const t = Date.now(); if (!cnt) firstT = t; lastT = t; cnt++;
+  clearTimeout(scanTimer);
+  scanTimer = setTimeout(() => {
+    const el = document.getElementById(id); const len = el ? el.value.length : 0;
+    const pasted = cnt === 1 && len >= 3;                         // poora code ek saath aaya
+    const fast = len >= 3 && cnt >= 3 && (lastT - firstT) / (cnt - 1) < 60;  // scanner jaisi speed, Enter ke bina
+    if (pasted || fast) handleScan(id); else resetBurst();
+  }, 200);
+});
+
+// scan input ka focus hamesha wapas laao + status dikhao
+function scanId(){ return S.stage === 'loc' ? 'loc' : (S.stage === 'bin' ? 'ean' : null); }
+function keepFocus(){ const id = scanId(); if (!id) return; const a = document.activeElement; if (a && a.tagName === 'INPUT') return; focus(id); }
+function status(){
+  const s = document.getElementById('sc'); if (!s) return;
+  const a = document.activeElement;
+  s.textContent = (a && a.id === 'loc') ? '🟢 Scanner ready — location scan karo' : '🔴 Input focus nahi hai — box par tap karo';
+}
+document.addEventListener('click', () => setTimeout(keepFocus, 50));
+document.addEventListener('visibilitychange', keepFocus);
+window.addEventListener('focus', keepFocus);
+document.addEventListener('focusin', status);
+document.addEventListener('focusout', () => setTimeout(status, 50));
+setInterval(keepFocus, 1500);
 
 function login(){
   const v = document.getElementById('nm').value.trim();
